@@ -84,7 +84,7 @@ void TSFixer::start()
            inputNode = inputNode.nextSibling();
     }
 
-    QFile outFile("result.xml");
+    QFile outFile("target.ts");
     if (!outFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
          qDebug("TSFixer::start() - Fatal Error: Failed to open file for writing!");
          return;
@@ -93,13 +93,12 @@ void TSFixer::start()
     QTextStream stream(&outFile);
     stream << outputDoc.toString();
     outFile.close();
+
+    qDebug() << "TSFixer::start() - Done!";
 }
 
 QDomDocument TSFixer::updateRecord(QDomDocument outputDoc, const QString &key, const QString &value)
 {
-    qDebug() << "key: " << key;
-    qDebug() << "value: " << value;
-
     QDomElement outputRoot = outputDoc.documentElement();
     QDomNode outputNode = outputRoot.firstChild();
 
@@ -107,9 +106,16 @@ QDomDocument TSFixer::updateRecord(QDomDocument outputDoc, const QString &key, c
     QString source = "";
     QString translation = "";
     QDomNode oldClass;
+    
+    QDomImplementation imp;
+    QDomDocumentType type = imp.createDocumentType("TS", "0", "");
+    QDomDocument newDoc(type);
+    QDomProcessingInstruction header = newDoc.createProcessingInstruction("xml", "version=\"1.0\" encoding=\"utf-8\"");
+    newDoc.appendChild(header); 
 
-    QDomDocument newDoc("test");
     QDomElement root = newDoc.createElement("TS");
+    root.setAttribute("version", "2.1");
+    root.setAttribute("language", "es_ES");
     newDoc.appendChild(root);  
 
     while (!outputNode.isNull()) {
@@ -133,14 +139,19 @@ QDomDocument TSFixer::updateRecord(QDomDocument outputDoc, const QString &key, c
                                      QDomNode n3 = e2.firstChild();
                                      while (!n3.isNull()) {
                                             QDomElement e3 = n3.toElement();
-                                            if (e3.tagName() == "source") { // Key
-                                                source = e3.text();
-                                                QDomElement sourceRecord = newDoc.createElement("source");
-                                                QDomText sourceDom = newDoc.createTextNode(source);
-                                                sourceRecord.appendChild(sourceDom);
-                                                msg.appendChild(sourceRecord);
-                                                if (source.compare(key) == 0)
-                                                    update = true;
+                                            if (e3.tagName() == "location") { // Location 
+                                                QDomElement locationRecord = newDoc.createElement("location");
+                                                locationRecord.setAttribute("line", e3.attribute("line"));
+                                                locationRecord.setAttribute("filename", e3.attribute("filename"));
+                                                msg.appendChild(locationRecord);
+                                            } else if (e3.tagName() == "source") { // Key
+                                                       source = e3.text();
+                                                       QDomElement sourceRecord = newDoc.createElement("source");
+                                                       QDomText sourceDom = newDoc.createTextNode(source);
+                                                       sourceRecord.appendChild(sourceDom);
+                                                       msg.appendChild(sourceRecord);
+                                                       if (source.compare(key) == 0)
+                                                           update = true;
                                             } else if (e3.tagName() == "translation") { // Translation 
                                                        QDomElement translationRecord = newDoc.createElement("translation");
                                                        QDomText sourceDom = newDoc.createTextNode(e3.text());
